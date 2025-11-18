@@ -28,6 +28,9 @@ class TrainingConfig(BaseModel):
     epsilon: float = 1.0
     epsilon_decay: float = 0.995
     grid_size: int = 5
+    obstacle_count: int = 3
+    obstacle_seed: Optional[int] = None
+    randomize_obstacles: bool = False
 
 
 class StepRequest(BaseModel):
@@ -57,8 +60,13 @@ async def read_root():
 async def initialize(config: TrainingConfig):
     """Initialize environment and agent."""
     global env, agent, training_history
-    
-    env = GridWorld(size=config.grid_size)
+
+    env = GridWorld(
+        size=config.grid_size,
+        obstacle_count=config.obstacle_count,
+        seed=config.obstacle_seed,
+        randomize_on_reset=config.randomize_obstacles,
+    )
     agent = QLearningAgent(
         grid_size=config.grid_size,
         learning_rate=config.learning_rate,
@@ -67,12 +75,101 @@ async def initialize(config: TrainingConfig):
         epsilon_decay=config.epsilon_decay
     )
     training_history = []
-    
+
     return {
         "status": "initialized",
         "environment": env.get_state_representation(),
         "config": config.dict()
     }
+
+
+def _run_training(env: GridWorld, agent: QLearningAgent, config: TrainingConfig):
+    """Run training loop and return a summary dict. This is a synchronous helper used
+    by the API endpoints.
+    """
+    episode_data = []
+
+    for episode in range(config.episodes):
+        state = env.reset()
+        total_reward = 0
+        steps = 0
+        done = False
+
+        episode_steps = []
+
+        while not done and steps < config.max_steps:
+            action = agent.get_action(state)
+            next_state, reward, done = env.step(action)
+            agent.update_q_value(state, action, reward, next_state)
+
+            episode_steps.append({
+                "state": state,
+                "action": action,
+                "reward": reward,
+                "next_state": next_state,
+                "done": done
+            })
+
+            total_reward += reward
+            state = next_state
+            steps += 1
+
+        agent.decay_epsilon()
+        agent.episode_rewards.append(total_reward)
+        agent.episode_steps.append(steps)
+
+        # Store episode data (only last 10 episodes to avoid too much data)
+        if episode >= config.episodes - 10:
+            episode_data.append({
+                "episode": episode,
+                "total_reward": total_reward,
+                "steps": steps,
+                "epsilon": agent.epsilon,
+                "episode_steps": episode_steps
+            })
+
+    result = {
+        "status": "training_complete",
+        "episodes_trained": config.episodes,
+        "episode_data": episode_data,
+        "final_epsilon": agent.epsilon,
+        "avg_reward_last_10": sum(agent.episode_rewards[-10:]) / min(10, len(agent.episode_rewards))
+    }
+    return result
+
+
+@app.post("/api/run")
+async def run_endpoint(config: TrainingConfig):
+    """Run a training session and return a full summary including final policy and obstacles."""
+    global env, agent, training_history
+
+    # Initialize fresh env/agent for a run (do not reuse existing global unless present)
+    env = GridWorld(
+        size=config.grid_size,
+        obstacle_count=config.obstacle_count,
+        seed=config.obstacle_seed,
+        randomize_on_reset=config.randomize_obstacles,
+    )
+    agent = QLearningAgent(
+        grid_size=config.grid_size,
+        learning_rate=config.learning_rate,
+        discount_factor=config.discount_factor,
+        epsilon=config.epsilon,
+        epsilon_decay=config.epsilon_decay
+    )
+    training_history = []
+
+    result = _run_training(env, agent, config)
+
+    # Augment result with final environment/agent details
+    result.update({
+        "obstacles": env.obstacles,
+        "policy": agent.get_policy(),
+        "state_values": agent.get_state_values(),
+        "q_table": agent.get_q_table_for_visualization(),
+    })
+
+    return result
 
 
 @app.post("/api/train")
@@ -82,7 +179,12 @@ async def train(config: TrainingConfig):
     
     if env is None or agent is None:
         # Initialize if not already done
-        env = GridWorld(size=config.grid_size)
+        env = GridWorld(
+            size=config.grid_size,
+            obstacle_count=config.obstacle_count,
+            seed=config.obstacle_seed,
+            randomize_on_reset=config.randomize_obstacles,
+        )
         agent = QLearningAgent(
             grid_size=config.grid_size,
             learning_rate=config.learning_rate,

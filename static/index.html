@@ -270,9 +270,22 @@
             </div>
 
             <div class="control-group">
+                <label>Obstacle Count:</label>
+                <input type="number" id="obstacleCount" value="3" min="0" max="20">
+
+                <label>Obstacle Seed:</label>
+                <input type="number" id="obstacleSeed" value="42">
+
+                <label>Randomize Obstacles:</label>
+                <input type="checkbox" id="randomizeObstacles">
+            </div>
+
+            <div class="control-group">
                 <button onclick="initializeEnvironment()" id="initBtn">Initialize Environment</button>
                 <button onclick="trainAgent()" id="trainBtn" disabled>Train Agent</button>
                 <button onclick="resetEnvironment()" id="resetBtn" disabled>Reset Environment</button>
+                <button onclick="animateRun()" id="animateBtn" disabled>Animate Run</button>
+                <button onclick="stopAnimation()" id="stopAnimateBtn" disabled>Stop</button>
             </div>
         </div>
 
@@ -571,6 +584,107 @@
                 }
             }
         }, 2000);
+
+        // Animation state
+        let _animateInterval = null;
+        let _animateRunning = false;
+
+        async function animateRun() {
+            if (_animateRunning) return;
+            // Fetch current state (must be initialized/trained)
+            try {
+                const resp = await fetch('/api/state');
+                if (!resp.ok) {
+                    showStatus('Environment not initialized or agent not trained.', 'error');
+                    return;
+                }
+                const data = await resp.json();
+
+                const env = JSON.parse(JSON.stringify(data.environment));
+                const policy = data.policy;
+                const values = data.state_values;
+
+                // Simple guard: require a non-empty policy
+                if (!policy || policy.length === 0) {
+                    showStatus('No policy available. Please train the agent first.', 'error');
+                    return;
+                }
+
+                const size = env.grid_size;
+                const start = env.start;
+                const goal = env.goal;
+                let pos = [env.current_pos[0], env.current_pos[1]];
+
+                // Disable controls while animating
+                document.getElementById('animateBtn').disabled = true;
+                document.getElementById('stopAnimateBtn').disabled = false;
+                _animateRunning = true;
+
+                const actionDelta = { up: [-1,0], down: [1,0], left: [0,-1], right: [0,1] };
+
+                let steps = 0;
+                const maxSteps = size * size * 2;
+
+                // local data object used by renderGrid
+                const localData = { environment: env, policy: policy, state_values: values };
+
+                // ensure agent starts at start position for animation
+                localData.environment.current_pos = [start[0], start[1]];
+                pos = [start[0], start[1]];
+                renderGrid(localData);
+
+                _animateInterval = setInterval(() => {
+                    if (!_animateRunning) return;
+
+                    // If reached goal, stop
+                    if (pos[0] === goal[0] && pos[1] === goal[1]) {
+                        showStatus('Agent reached the goal!', 'success');
+                        stopAnimation();
+                        return;
+                    }
+
+                    if (steps >= maxSteps) {
+                        showStatus('Animation stopped (max steps reached).', 'info');
+                        stopAnimation();
+                        return;
+                    }
+
+                    const act = policy[pos[0]][pos[1]];
+                    const delta = actionDelta[act] || [0,0];
+                    const next = [pos[0] + delta[0], pos[1] + delta[1]];
+
+                    // Check bounds and obstacles
+                    const outOfBounds = next[0] < 0 || next[0] >= size || next[1] < 0 || next[1] >= size;
+                    const isObstacle = env.obstacles.some(o => o[0] === next[0] && o[1] === next[1]);
+                    if (outOfBounds || isObstacle) {
+                        showStatus('Agent cannot proceed (blocked or out of bounds).', 'error');
+                        stopAnimation();
+                        return;
+                    }
+
+                    pos = next;
+                    localData.environment.current_pos = [pos[0], pos[1]];
+                    renderGrid(localData);
+                    steps += 1;
+                }, 350);
+
+            } catch (err) {
+                showStatus('Error starting animation: ' + err.message, 'error');
+                _animateRunning = false;
+                document.getElementById('animateBtn').disabled = false;
+                document.getElementById('stopAnimateBtn').disabled = true;
+            }
+        }
+
+        function stopAnimation() {
+            if (_animateInterval) {
+                clearInterval(_animateInterval);
+                _animateInterval = null;
+            }
+            _animateRunning = false;
+            document.getElementById('animateBtn').disabled = false;
+            document.getElementById('stopAnimateBtn').disabled = true;
+        }
     </script>
 </body>
 </html>
