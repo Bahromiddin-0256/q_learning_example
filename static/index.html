@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q-Learning Visual Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #555;
+            min-width: 120px;
+        }
+
+        .control-group input {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            width: 150px;
+        }
+
+        .control-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .visualization {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .grid-container, .charts-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .grid-container h3, .charts-container h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        #gridWorld {
+            display: grid;
+            gap: 2px;
+            background: #ddd;
+            padding: 2px;
+            border-radius: 5px;
+            width: fit-content;
+            margin: 0 auto;
+        }
+
+        .grid-cell {
+            width: 60px;
+            height: 60px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .grid-cell.start {
+            background: #90EE90;
+        }
+
+        .grid-cell.goal {
+            background: #FFD700;
+        }
+
+        .grid-cell.obstacle {
+            background: #333;
+        }
+
+        .grid-cell.current {
+            background: #FF6B6B;
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+
+        .grid-cell .value {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .grid-cell .arrow {
+            font-size: 20px;
+        }
+
+        .info-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-panel div {
+            margin: 5px 0;
+            color: #555;
+        }
+
+        .info-panel strong {
+            color: #333;
+        }
+
+        #rewardChart, #stepsChart {
+            width: 100%;
+            height: 250px;
+            margin-bottom: 20px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 30px;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 1024px) {
+            .visualization {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Q-Learning Visual Example</h1>
+        <p class="subtitle">Watch an AI agent learn to navigate a grid world using Q-Learning!</p>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Grid Size:</label>
+                <input type="number" id="gridSize" value="5" min="3" max="10">
+                
+                <label>Episodes:</label>
+                <input type="number" id="episodes" value="100" min="1" max="1000">
+                
+                <label>Learning Rate:</label>
+                <input type="number" id="learningRate" value="0.1" min="0.01" max="1" step="0.01">
+            </div>
+            
+            <div class="control-group">
+                <label>Discount Factor:</label>
+                <input type="number" id="discountFactor" value="0.95" min="0" max="1" step="0.01">
+                
+                <label>Epsilon:</label>
+                <input type="number" id="epsilon" value="1.0" min="0" max="1" step="0.01">
+                
+                <label>Epsilon Decay:</label>
+                <input type="number" id="epsilonDecay" value="0.995" min="0.9" max="1" step="0.001">
+            </div>
+
+            <div class="control-group">
+                <button onclick="initializeEnvironment()" id="initBtn">Initialize Environment</button>
+                <button onclick="trainAgent()" id="trainBtn" disabled>Train Agent</button>
+                <button onclick="resetEnvironment()" id="resetBtn" disabled>Reset Environment</button>
+            </div>
+        </div>
+
+        <div id="statusMessage"></div>
+
+        <div class="visualization">
+            <div class="grid-container">
+                <h3>Grid World Environment</h3>
+                <div id="gridWorld"></div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #90EE90;"></div>
+                        <span>Start</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FFD700;"></div>
+                        <span>Goal</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #333;"></div>
+                        <span>Obstacle</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF6B6B;"></div>
+                        <span>Agent</span>
+                    </div>
+                </div>
+                <div class="info-panel" id="infoPanel">
+                    <div><strong>Status:</strong> Not initialized</div>
+                </div>
+            </div>
+
+            <div class="charts-container">
+                <h3>Training Performance</h3>
+                <canvas id="rewardChart"></canvas>
+                <canvas id="stepsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        let rewardChart = null;
+        let stepsChart = null;
+        let currentState = null;
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            setTimeout(() => {
+                statusDiv.className = '';
+                statusDiv.textContent = '';
+            }, 5000);
+        }
+
+        async function initializeEnvironment() {
+            const config = {
+                grid_size: parseInt(document.getElementById('gridSize').value),
+                episodes: parseInt(document.getElementById('episodes').value),
+                learning_rate: parseFloat(document.getElementById('learningRate').value),
+                discount_factor: parseFloat(document.getElementById('discountFactor').value),
+                epsilon: parseFloat(document.getElementById('epsilon').value),
+                epsilon_decay: parseFloat(document.getElementById('epsilonDecay').value)
+            };
+
+            try {
+                const response = await fetch('/api/initialize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await response.json();
+                
+                showStatus('Environment initialized successfully!', 'success');
+                document.getElementById('trainBtn').disabled = false;
+                document.getElementById('resetBtn').disabled = false;
+                
+                await updateVisualization();
+            } catch (error) {
+                showStatus('Error initializing environment: ' + error.message, 'error');
+            }
+        }
+
+        async function trainAgent() {
+            const trainBtn = document.getElementById('trainBtn');
+            trainBtn.disabled = true;
+            trainBtn.textContent = 'Training...';
+
+            const config = {
+                grid_size: parseInt(document.getElementById('gridSize').value),
+                episodes: parseInt(document.getElementById('episodes').value),
+                learning_rate: parseFloat(document.getElementById('learningRate').value),
+                discount_factor: parseFloat(document.getElementById('discountFactor').value),
+                epsilon: parseFloat(document.getElementById('epsilon').value),
+                epsilon_decay: parseFloat(document.getElementById('epsilonDecay').value),
+                max_steps: 100
+            };
+
+            try {
+                const response = await fetch('/api/train', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await response.json();
+                
+                showStatus(`Training complete! Avg reward (last 10): ${data.avg_reward_last_10.toFixed(2)}`, 'success');
+                
+                await updateVisualization();
+            } catch (error) {
+                showStatus('Error training agent: ' + error.message, 'error');
+            } finally {
+                trainBtn.disabled = false;
+                trainBtn.textContent = 'Train Agent';
+            }
+        }
+
+        async function resetEnvironment() {
+            try {
+                const response = await fetch('/api/reset', { method: 'POST' });
+                const data = await response.json();
+                
+                showStatus('Environment reset!', 'success');
+                await updateVisualization();
+            } catch (error) {
+                showStatus('Error resetting environment: ' + error.message, 'error');
+            }
+        }
+
+        async function updateVisualization() {
+            try {
+                const response = await fetch('/api/state');
+                const data = await response.json();
+                currentState = data;
+                
+                renderGrid(data);
+                renderCharts(data);
+                updateInfoPanel(data);
+            } catch (error) {
+                console.error('Error updating visualization:', error);
+            }
+        }
+
+        function renderGrid(data) {
+            const gridWorld = document.getElementById('gridWorld');
+            const env = data.environment;
+            const size = env.grid_size;
+            const policy = data.policy;
+            const values = data.state_values;
+            
+            gridWorld.style.gridTemplateColumns = `repeat(${size}, 60px)`;
+            gridWorld.innerHTML = '';
+
+            const arrowMap = {
+                'up': '↑',
+                'down': '↓',
+                'left': '←',
+                'right': '→'
+            };
+
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    
+                    // Check if this is a special cell
+                    if (i === env.start[0] && j === env.start[1]) {
+                        cell.classList.add('start');
+                        cell.innerHTML = '🏁';
+                    } else if (i === env.goal[0] && j === env.goal[1]) {
+                        cell.classList.add('goal');
+                        cell.innerHTML = '🎯';
+                    } else if (env.obstacles.some(obs => obs[0] === i && obs[1] === j)) {
+                        cell.classList.add('obstacle');
+                        cell.innerHTML = '🚫';
+                    } else {
+                        // Show policy arrow and value
+                        const arrow = arrowMap[policy[i][j]];
+                        const value = values[i][j].toFixed(1);
+                        cell.innerHTML = `<span class="arrow">${arrow}</span><span class="value">${value}</span>`;
+                    }
+                    
+                    // Highlight current position
+                    if (i === env.current_pos[0] && j === env.current_pos[1]) {
+                        cell.classList.add('current');
+                        if (!(i === env.start[0] && j === env.start[1]) && 
+                            !(i === env.goal[0] && j === env.goal[1])) {
+                            cell.innerHTML = '🤖' + cell.innerHTML;
+                        }
+                    }
+                    
+                    gridWorld.appendChild(cell);
+                }
+            }
+        }
+
+        function renderCharts(data) {
+            const rewards = data.episode_rewards;
+            const steps = data.episode_steps;
+            
+            if (rewards.length === 0) return;
+
+            const labels = rewards.map((_, i) => i + 1);
+
+            // Reward chart
+            const rewardCtx = document.getElementById('rewardChart').getContext('2d');
+            if (rewardChart) rewardChart.destroy();
+            
+            rewardChart = new Chart(rewardCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Episode Reward',
+                        data: rewards,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true },
+                        title: { display: true, text: 'Rewards per Episode' }
+                    },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+
+            // Steps chart
+            const stepsCtx = document.getElementById('stepsChart').getContext('2d');
+            if (stepsChart) stepsChart.destroy();
+            
+            stepsChart = new Chart(stepsCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Steps per Episode',
+                        data: steps,
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true },
+                        title: { display: true, text: 'Steps per Episode' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function updateInfoPanel(data) {
+            const panel = document.getElementById('infoPanel');
+            const totalEpisodes = data.episode_rewards.length;
+            const avgReward = totalEpisodes > 0 ? 
+                (data.episode_rewards.reduce((a, b) => a + b, 0) / totalEpisodes).toFixed(2) : 0;
+            const avgSteps = totalEpisodes > 0 ? 
+                (data.episode_steps.reduce((a, b) => a + b, 0) / totalEpisodes).toFixed(1) : 0;
+            
+            panel.innerHTML = `
+                <div><strong>Current Position:</strong> (${data.current_position[0]}, ${data.current_position[1]})</div>
+                <div><strong>Epsilon:</strong> ${data.epsilon.toFixed(3)} (exploration rate)</div>
+                <div><strong>Total Episodes:</strong> ${totalEpisodes}</div>
+                <div><strong>Avg Reward:</strong> ${avgReward}</div>
+                <div><strong>Avg Steps:</strong> ${avgSteps}</div>
+            `;
+        }
+
+        // Auto-update visualization every 2 seconds if environment is initialized
+        setInterval(async () => {
+            if (document.getElementById('trainBtn').disabled === false) {
+                // Only update if not training
+                try {
+                    const response = await fetch('/api/health');
+                    const health = await response.json();
+                    if (health.initialized) {
+                        // Don't auto-update to avoid interrupting user
+                    }
+                } catch (error) {
+                    // Ignore errors
+                }
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
