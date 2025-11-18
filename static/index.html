@@ -382,6 +382,12 @@
                 discount_factor: parseFloat(document.getElementById('discountFactor').value),
                 epsilon: parseFloat(document.getElementById('epsilon').value),
                 epsilon_decay: parseFloat(document.getElementById('epsilonDecay').value),
+                obstacle_count: parseInt(document.getElementById('obstacleCount').value),
+                obstacle_seed: parseInt(document.getElementById('obstacleSeed').value) || null,
+                randomize_obstacles: document.getElementById('randomizeObstacles').checked,
+                obstacle_count: parseInt(document.getElementById('obstacleCount').value),
+                obstacle_seed: parseInt(document.getElementById('obstacleSeed').value) || null,
+                randomize_obstacles: document.getElementById('randomizeObstacles').checked,
                 max_steps: 100
             };
 
