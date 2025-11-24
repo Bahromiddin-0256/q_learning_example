@@ -185,10 +185,17 @@
             color: #333;
         }
 
-        #rewardChart, #stepsChart {
+        .chart-wrapper {
             width: 100%;
             height: 250px;
             margin-bottom: 20px;
+            position: relative;
+        }
+
+        #rewardChart, #stepsChart {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: 250px;
         }
 
         .status {
@@ -320,8 +327,12 @@
 
             <div class="charts-container">
                 <h3>Training Performance</h3>
-                <canvas id="rewardChart"></canvas>
-                <canvas id="stepsChart"></canvas>
+                <div class="chart-wrapper">
+                    <canvas id="rewardChart"></canvas>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="stepsChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
